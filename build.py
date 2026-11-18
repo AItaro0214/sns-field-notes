@@ -7,6 +7,8 @@ data/observations.json と assets/covers/<date>.jpg（任意）を読み、
 docs/ 以下に GitHub Pages 向け静的サイトを生成する。標準ライブラリのみ。
 data/marketing.json（マーケティングスペースのスナップショット）があれば、
 docs/marketing/index.html も生成する。
+data/communities.json（界隈カテゴリの定点観測）があれば、
+docs/communities/index.html も生成する。
 
 使い方: python3 build.py
 """
@@ -20,6 +22,7 @@ from datetime import datetime, timedelta, timezone
 BASE = os.path.dirname(os.path.abspath(__file__))
 DATA_PATH = os.path.join(BASE, "data", "observations.json")
 MARKETING_PATH = os.path.join(BASE, "data", "marketing.json")
+COMMUNITIES_PATH = os.path.join(BASE, "data", "communities.json")
 COVERS_DIR = os.path.join(BASE, "assets", "covers")
 SITE_DIR = os.path.join(BASE, "docs")
 
@@ -183,6 +186,25 @@ footer.site-foot{color:var(--muted); font-size:.85rem; text-align:center; paddin
   .timeline li{flex-wrap:wrap}
   section.panel{padding:16px}
 }
+/* 界隈マップ */
+.comm-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px}
+.comm-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:18px 20px; display:flex; flex-direction:column}
+.comm-card h3{margin:0; font-size:1.12rem}
+.comm-head{display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:4px}
+.comm-card .scope{color:var(--muted); font-size:.9rem; margin:0 0 12px}
+.phase-badge{flex:0 0 auto; border-radius:999px; padding:1px 11px; font-size:.8rem; font-weight:700; white-space:nowrap; margin-top:3px}
+.phase-sprout{background:#e6f4ea; color:#137333}
+.phase-growing{background:var(--accent-soft); color:var(--accent)}
+.phase-settled{background:var(--gold-soft); color:var(--gold)}
+.phase-cooling{background:#e8ecf3; color:#45506a}
+.phase-watching{background:#eef0f4; color:var(--muted)}
+.comm-card .mech{background:#f0f3fa; border-radius:10px; padding:10px 14px; font-size:.93rem; margin:0 0 12px}
+.comm-card .mech .mech-lbl{display:block; font-weight:700; font-size:.8rem; color:var(--muted); margin-bottom:2px}
+.comm-card .timeline{margin-top:auto}
+.comm-empty{color:var(--muted); font-size:.92rem; margin:auto 0 0}
+@media (max-width:640px){
+  .comm-grid{grid-template-columns:1fr}
+}
 /* 共通ナビ */
 nav.site-nav{background:#141a29; color:#fff}
 nav.site-nav .wrap{padding-top:0; padding-bottom:0; display:flex; gap:6px; flex-wrap:wrap}
@@ -250,10 +272,12 @@ def page_shell(title, body, depth=0, section="sns"):
     prefix = "../" * depth
     sns_cls = ' class="active"' if section == "sns" else ""
     mkt_cls = ' class="active"' if section == "marketing" else ""
+    comm_cls = ' class="active"' if section == "communities" else ""
     nav = f"""
 <nav class="site-nav"><div class="wrap">
   <a href="{prefix}index.html"{sns_cls}>SNS観測トップ</a>
   <a href="{prefix}marketing/index.html"{mkt_cls}>マーケティング最新情報</a>
+  <a href="{prefix}communities/index.html"{comm_cls}>界隈マップ</a>
 </div></nav>"""
     return f"""<!DOCTYPE html>
 <html lang="ja">
@@ -747,6 +771,60 @@ def build_marketing(mk):
     return page_shell("マーケティング最新情報 | SNS FIELD NOTES", body, depth=1, section="marketing")
 
 
+PHASE_CLASSES = {
+    "芽生え": "phase-sprout",
+    "拡大中": "phase-growing",
+    "定着": "phase-settled",
+    "冷静化": "phase-cooling",
+    "観測中": "phase-watching",
+}
+
+
+def build_communities(cm):
+    cats = cm.get("categories", [])
+    active = [c for c in cats if c.get("entries")]
+    total_entries = sum(len(c.get("entries", [])) for c in cats)
+
+    cards = []
+    for c in cats:
+        phase = c.get("phase", "観測中")
+        phase_cls = PHASE_CLASSES.get(phase, "phase-watching")
+        mech = ""
+        if c.get("mechanics"):
+            mech = f'<p class="mech"><span class="mech-lbl">ハマり方・コミュニティの型</span>{esc(c["mechanics"])}</p>'
+        entries = sorted(c.get("entries", []), key=lambda e: e["date"], reverse=True)
+        if entries:
+            rows = "".join(
+                f'<li><span class="d">{esc(e["date"])}</span><span class="nt">{esc(e["note"])}</span></li>'
+                for e in entries
+            )
+            entries_html = f'<ul class="timeline">{rows}</ul>'
+        else:
+            entries_html = '<p class="comm-empty">まだ目立った動きなし</p>'
+        cards.append(f"""
+<article class="comm-card">
+  <div class="comm-head"><h3>{esc(c['name'])}</h3><span class="phase-badge {phase_cls}">{esc(phase)}</span></div>
+  <p class="scope">{esc(c['scope'])}</p>
+  {mech}
+  {entries_html}
+</article>""")
+
+    body = f"""
+<header class="site-head"><div class="wrap">
+  <h1>界隈マップ</h1>
+  <p>SNS観測で拾った話題を、大きな界隈カテゴリごとに定点観測するページ。</p>
+</div></header>
+<div class="wrap">
+<section class="panel">
+  <h2>このページについて</h2>
+  <p>個別の話題の細部ではなく、「物がどうハマっていくか（広がり方の型）」と「コミュニティがどう作られていくか」を、界隈カテゴリごとに追いかけます。日々の観測で目立った動きがあったカテゴリに、その日の記録と型の気づきを足していきます。本格的にリサーチしたい界隈が出てきたときに、ここからすぐ振り返れるようにするための台帳です。</p>
+  <p class="meta-line">カテゴリ：{len(cats)}／動きを記録したカテゴリ：{len(active)}／記録件数：{total_entries}件／最終更新：{esc(cm.get('updatedAt', ''))}</p>
+</section>
+<div class="comm-grid">{''.join(cards)}</div>
+</div>"""
+    return page_shell("界隈マップ | SNS FIELD NOTES", body, depth=1, section="communities")
+
+
 def main():
     with open(DATA_PATH, encoding="utf-8") as f:
         data = json.load(f)
@@ -786,7 +864,17 @@ def main():
             f.write(build_marketing(mk))
         mkt_msg = f"marketing: built ({len(mk['articles'])} articles, {len(mk.get('featured', []))} featured)"
 
-    print(f"built: index.html + {len(days)} day pages; covers copied: {copied or 'none'}; {mkt_msg}")
+    # 界隈マップ（data/communities.json があれば生成する）
+    comm_msg = "communities: skipped (data/communities.json なし)"
+    if os.path.isfile(COMMUNITIES_PATH):
+        with open(COMMUNITIES_PATH, encoding="utf-8") as f:
+            cm = json.load(f)
+        os.makedirs(os.path.join(SITE_DIR, "communities"), exist_ok=True)
+        with open(os.path.join(SITE_DIR, "communities", "index.html"), "w", encoding="utf-8") as f:
+            f.write(build_communities(cm))
+        comm_msg = f"communities: built ({len(cm.get('categories', []))} categories)"
+
+    print(f"built: index.html + {len(days)} day pages; covers copied: {copied or 'none'}; {mkt_msg}; {comm_msg}")
 
 
 if __name__ == "__main__":
