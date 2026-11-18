@@ -1,0 +1,450 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+SNS FIELD NOTES 静的サイトビルダー
+
+data/observations.json と assets/covers/<date>.jpg（任意）を読み、
+docs/ 以下に GitHub Pages 向け静的サイトを生成する。標準ライブラリのみ。
+
+使い方: python3 build.py
+"""
+import html
+import json
+import os
+import shutil
+
+BASE = os.path.dirname(os.path.abspath(__file__))
+DATA_PATH = os.path.join(BASE, "data", "observations.json")
+COVERS_DIR = os.path.join(BASE, "assets", "covers")
+SITE_DIR = os.path.join(BASE, "docs")
+
+ACCENTS = ["accent-0", "accent-1", "accent-2", "accent-3", "accent-4", "accent-5"]
+
+
+def esc(s):
+    return html.escape(str(s), quote=True)
+
+
+def fmt_posts(n):
+    """投稿数を表示用に整形する（例: 6500000 -> '6.5M', 57400 -> '57.4K'）。"""
+    if n is None:
+        return None
+    if n >= 1_000_000:
+        v = n / 1_000_000
+        return (f"{v:.1f}".rstrip("0").rstrip(".")) + "M"
+    if n >= 1_000:
+        v = n / 1_000
+        return (f"{v:.1f}".rstrip("0").rstrip(".")) + "K"
+    return f"{n:,}"
+
+
+def top_trend(day):
+    """その日の投稿数最大のトレンド（投稿数が全て不明なら先頭）。"""
+    known = [t for t in day["trends"] if t.get("posts")]
+    if known:
+        return max(known, key=lambda t: t["posts"])
+    return day["trends"][0] if day["trends"] else None
+
+
+def cover_rel(date, from_day_page=False):
+    """カバー画像が存在すれば相対パスを、無ければ None を返す。"""
+    src = os.path.join(COVERS_DIR, date + ".jpg")
+    if not os.path.isfile(src):
+        return None
+    prefix = "../" if from_day_page else ""
+    return f"{prefix}assets/covers/{date}.jpg"
+
+
+def cover_html(date, from_day_page=False, cls="cover"):
+    rel = cover_rel(date, from_day_page)
+    if rel:
+        return f'<img class="{cls}" src="{esc(rel)}" alt="{esc(date)} の観測カバー画像">'
+    return f'<div class="{cls} cover-fallback" role="img" aria-label="{esc(date)} の観測（カバー画像なし）"><span>{esc(date)}</span></div>'
+
+
+CSS = r"""
+:root{
+  --bg:#f4f5f7; --surface:#ffffff; --ink:#1c2333; --muted:#5b6478;
+  --line:#dde1ea; --accent:#3b5bdb; --accent-soft:#e7ecfd;
+  --warn:#b3261e; --warn-soft:#fdecea; --gold:#8a6d00; --gold-soft:#fdf6d8;
+  --radius:14px;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic UI","Yu Gothic",Meiryo,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  line-height:1.75; font-size:16px;
+}
+a{color:var(--accent); text-decoration:none}
+a:hover{text-decoration:underline}
+.wrap{max-width:1080px; margin:0 auto; padding:0 16px 64px}
+header.site-head{
+  background:linear-gradient(135deg,#1c2333,#2c3a5e); color:#fff;
+  padding:36px 0 28px; margin-bottom:28px;
+}
+header.site-head .wrap{padding-bottom:0}
+header.site-head h1{margin:0 0 6px; font-size:1.7rem; letter-spacing:.04em}
+header.site-head p{margin:0; color:#c6cfe4; font-size:.95rem}
+header.site-head a{color:#fff}
+.kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin:0 0 28px}
+.kpi{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px}
+.kpi .num{font-size:1.9rem; font-weight:700; line-height:1.2}
+.kpi .lbl{color:var(--muted); font-size:.85rem}
+section.panel{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:22px 22px 18px; margin-bottom:24px}
+section.panel > h2{margin:0 0 14px; font-size:1.25rem; border-left:5px solid var(--accent); padding-left:10px}
+section.panel > h3{margin:20px 0 8px; font-size:1.05rem}
+.chart{width:100%; height:auto; display:block}
+.chart .bar{fill:var(--accent)}
+.chart .bar:hover{fill:#2f4bc0}
+.chart text{font-size:12px; fill:var(--ink)}
+.chart .muted{fill:var(--muted)}
+.theme{border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; margin-bottom:14px; background:#fbfcfe}
+.theme h3{margin:0 0 4px; font-size:1.08rem}
+.theme .desc{color:var(--muted); font-size:.92rem; margin:0 0 12px}
+.timeline{list-style:none; margin:0; padding:0}
+.timeline li{display:flex; gap:12px; padding:8px 0; border-top:1px dashed var(--line)}
+.timeline li:first-child{border-top:none}
+.timeline .d{flex:0 0 auto; font-weight:700; white-space:nowrap}
+.timeline .ph{flex:0 0 auto; background:var(--accent-soft); color:var(--accent); border-radius:999px; padding:0 10px; font-size:.82rem; font-weight:700; height:fit-content; margin-top:3px}
+.timeline .nt{color:var(--ink); font-size:.95rem}
+.daycards{display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:16px}
+.daycard{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; display:flex; flex-direction:column}
+.daycard .cover,.daycard .cover-fallback{width:100%; height:170px; object-fit:cover; display:block}
+.cover-fallback{background:linear-gradient(135deg,#2c3a5e,#3b5bdb); color:#fff; display:flex; align-items:center; justify-content:center; font-size:1.3rem; font-weight:700; letter-spacing:.06em}
+.daycard .body{padding:14px 16px 16px; display:flex; flex-direction:column; gap:6px; flex:1}
+.daycard .date{font-weight:700; font-size:1.05rem}
+.daycard .top{font-size:.95rem}
+.daycard .imp{color:var(--muted); font-size:.9rem; flex:1}
+.daycard .more{font-size:.9rem; font-weight:700}
+.badge{display:inline-block; border-radius:999px; padding:0 9px; font-size:.78rem; font-weight:700; vertical-align:middle}
+.badge-new{background:#e6f4ea; color:#137333}
+.badge-cont{background:var(--gold-soft); color:var(--gold)}
+/* 日別ページ */
+.hero{border-radius:var(--radius); overflow:hidden; margin-bottom:24px; border:1px solid var(--line); background:var(--surface)}
+.hero .cover,.hero .cover-fallback{width:100%; height:300px; object-fit:cover; display:block}
+.hero .hero-body{padding:20px 22px}
+.hero h1{margin:0 0 6px; font-size:1.6rem}
+.hero .meta{color:var(--muted); font-size:.92rem}
+.hero.accent-0{border-top:8px solid #3b5bdb}.hero.accent-1{border-top:8px solid #0b8043}
+.hero.accent-2{border-top:8px solid #b06000}.hero.accent-3{border-top:8px solid #9334a6}
+.hero.accent-4{border-top:8px solid #c2185b}.hero.accent-5{border-top:8px solid #00796b}
+.trend-row{margin-bottom:14px}
+.trend-row .t-head{display:flex; justify-content:space-between; gap:12px; align-items:baseline; flex-wrap:wrap}
+.trend-row .t-name{font-weight:700}
+.trend-row .t-posts{color:var(--muted); font-size:.88rem; white-space:nowrap}
+.trend-row .t-bar{height:10px; background:#edf0f6; border-radius:999px; overflow:hidden; margin:5px 0 6px}
+.trend-row .t-bar > div{height:100%; background:var(--accent); border-radius:999px}
+.trend-row .t-bar.unknown > div{background:repeating-linear-gradient(45deg,#c9d2e8,#c9d2e8 6px,#e3e8f5 6px,#e3e8f5 12px)}
+.trend-row p{margin:0; color:#333c52; font-size:.95rem}
+blockquote.post-note{
+  margin:0 0 14px; background:#fbfcfe; border:1px solid var(--line);
+  border-left:5px solid var(--accent); border-radius:10px; padding:14px 16px;
+}
+blockquote.post-note h3{margin:0 0 4px; font-size:1rem}
+blockquote.post-note .author{color:var(--muted); font-size:.85rem}
+blockquote.post-note p{margin:6px 0 0}
+blockquote.post-note .feeling{color:#333c52; font-size:.93rem}
+blockquote.post-note .feeling::before{content:"推測される気持ち："; font-weight:700; color:var(--muted)}
+blockquote.post-note .note-link{margin:8px 0 0}
+blockquote.post-note .note-link a{font-weight:700; font-size:.9rem}
+.trend-row .t-src{font-size:.8rem; font-weight:700; white-space:nowrap}
+.contro{border:1px solid #f0c6c2; background:var(--warn-soft); border-radius:10px; padding:12px 16px; margin-bottom:12px}
+.contro h3{margin:0 0 4px; font-size:1rem; color:var(--warn)}
+.contro p{margin:0; font-size:.95rem}
+.callout{border:1px solid #e8d98a; background:var(--gold-soft); border-radius:10px; padding:14px 18px; margin-bottom:12px}
+.callout p{margin:0}
+.callout .no{font-weight:700; color:var(--gold)}
+.note-box{background:#f0f3fa; border-radius:10px; padding:14px 18px; font-size:.95rem}
+.note-box p{margin:0}
+.kv{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px}
+.kv .item{background:#fbfcfe; border:1px solid var(--line); border-radius:10px; padding:12px 16px}
+.kv .item h3{margin:0 0 4px; font-size:.95rem; color:var(--muted)}
+.kv .item p{margin:0; font-size:.95rem}
+nav.pager{display:flex; justify-content:space-between; gap:12px; margin-top:8px; flex-wrap:wrap}
+nav.pager a{background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:6px 16px; font-size:.92rem}
+footer.site-foot{color:var(--muted); font-size:.85rem; text-align:center; padding:24px 16px 40px}
+@media (max-width:640px){
+  header.site-head h1{font-size:1.35rem}
+  .hero .cover,.hero .cover-fallback{height:190px}
+  .timeline li{flex-wrap:wrap}
+  section.panel{padding:16px}
+}
+"""
+
+
+def page_shell(title, body, depth=0):
+    prefix = "../" * depth
+    return f"""<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{esc(title)}</title>
+<link rel="stylesheet" href="{prefix}assets/style.css">
+</head>
+<body>
+{body}
+<footer class="site-foot">SNS FIELD NOTES — Instagram / Threads 観測記録（読み取り専用・トレンド起点の観測）</footer>
+</body>
+</html>
+"""
+
+
+def svg_bar_chart(days):
+    """日ごとのトップトレンド投稿数の SVG バーチャート。"""
+    tops = []
+    for d in days:
+        t = top_trend(d)
+        tops.append((d, t))
+    values = [t["posts"] for _, t in tops if t and t.get("posts")]
+    maxv = max(values) if values else 1
+    n = len(tops)
+    width, height = 1020, 300
+    pad_l, pad_b, pad_t = 16, 64, 34
+    chart_h = height - pad_b - pad_t
+    slot = (width - pad_l * 2) / max(n, 1)
+    bar_w = min(96, slot * 0.55)
+    parts = [f'<svg class="chart" viewBox="0 0 {width} {height}" role="img" aria-label="日ごとのトップトレンド投稿数グラフ">']
+    for i, (d, t) in enumerate(tops):
+        x = pad_l + slot * i + (slot - bar_w) / 2
+        v = t["posts"] if t and t.get("posts") else 0
+        h = (v / maxv) * chart_h if v else 0
+        y = pad_t + (chart_h - h)
+        label = fmt_posts(v) if v else "—"
+        name = t["name"] if t else ""
+        parts.append(f'<rect class="bar" x="{x:.0f}" y="{y:.0f}" width="{bar_w:.0f}" height="{h:.0f}" rx="6"><title>{esc(name)}: {esc(label)}</title></rect>')
+        parts.append(f'<text x="{x + bar_w / 2:.0f}" y="{y - 8:.0f}" text-anchor="middle" font-weight="700">{esc(label)}</text>')
+        parts.append(f'<text x="{x + bar_w / 2:.0f}" y="{height - 40}" text-anchor="middle">{esc(d["date"][5:])}（{esc(d["weekday"])}）</text>')
+        short = name if len(name) <= 12 else name[:11] + "…"
+        parts.append(f'<text class="muted" x="{x + bar_w / 2:.0f}" y="{height - 20}" text-anchor="middle">{esc(short)}</text>')
+    parts.append("</svg>")
+    return "\n".join(parts)
+
+
+def build_index(data, days):
+    total_topics = sum(len(d["trends"]) for d in days)
+    total_notes = sum(len(d["postNotes"]) for d in days)
+    total_impl = sum(len(d["implications"]) for d in days)
+    latest = days[-1]
+    lt = top_trend(latest)
+    lt_posts = fmt_posts(lt["posts"]) if lt and lt.get("posts") else "—"
+
+    kpis = f"""
+<div class="kpis">
+  <div class="kpi"><div class="num">{len(days)}</div><div class="lbl">観測日数（日）</div></div>
+  <div class="kpi"><div class="num">{total_topics}</div><div class="lbl">累計トレンドトピック数</div></div>
+  <div class="kpi"><div class="num">{total_notes}</div><div class="lbl">個別投稿ノート数</div></div>
+  <div class="kpi"><div class="num">{total_impl}</div><div class="lbl">累計の示唆</div></div>
+  <div class="kpi"><div class="num">{esc(lt_posts)}</div><div class="lbl">最新日（{esc(latest['date'])}）のトップトレンド投稿数：{esc(lt['name'] if lt else '')}</div></div>
+</div>"""
+
+    themes_html = []
+    for th in data.get("themes", []):
+        rows = []
+        for ph in th["phases"]:
+            rows.append(
+                f'<li><span class="d">{esc(ph["date"])}</span>'
+                f'<span class="ph">{esc(ph["phase"])}</span>'
+                f'<span class="nt">{esc(ph["note"])}</span></li>'
+            )
+        themes_html.append(
+            f'<div class="theme"><h3>{esc(th["name"])}</h3>'
+            f'<p class="desc">{esc(th["description"])}</p>'
+            f'<ul class="timeline">{"".join(rows)}</ul></div>'
+        )
+
+    cards = []
+    for d in reversed(days):
+        t = top_trend(d)
+        imp = d["implications"][0] if d["implications"] else ""
+        cards.append(f"""
+<article class="daycard">
+  {cover_html(d['date'])}
+  <div class="body">
+    <div class="date">{esc(d['date'])}（{esc(d['weekday'])}）{' ― 初回観測' if d.get('firstObservation') else ''}</div>
+    <div class="top">トップトレンド：<strong>{esc(t['name'] if t else '')}</strong>{'（' + esc(fmt_posts(t['posts'])) + ' posts）' if t and t.get('posts') else ''}</div>
+    <p class="imp">示唆：{esc(imp)}</p>
+    <a class="more" href="days/{esc(d['date'])}.html">この日の記事を読む →</a>
+  </div>
+</article>""")
+
+    body = f"""
+<header class="site-head"><div class="wrap">
+  <h1>{esc(data['site']['title'])}</h1>
+  <p>{esc(data['site']['description'])}</p>
+</div></header>
+<div class="wrap">
+{kpis}
+<section class="panel">
+  <h2>日ごとのトップトレンド投稿数</h2>
+  {svg_bar_chart(days)}
+</section>
+<section class="panel">
+  <h2>継続テーマ・トラッカー</h2>
+  {''.join(themes_html)}
+</section>
+<section class="panel">
+  <h2>日別記事</h2>
+  <div class="daycards">{''.join(cards)}</div>
+</section>
+<p class="note-box">{esc(data['site']['note'])}</p>
+</div>"""
+    return page_shell(data["site"]["title"], body, depth=0)
+
+
+def build_day(data, day, idx, days):
+    accent = ACCENTS[idx % len(ACCENTS)]
+    d = day
+    max_posts = max([t["posts"] for t in d["trends"] if t.get("posts")] or [0])
+
+    trend_rows = []
+    for t in d["trends"]:
+        badge = '<span class="badge badge-new">新規</span>' if t["status"] == "新規" else '<span class="badge badge-cont">継続</span>'
+        if t.get("posts"):
+            pct = max(4, round(t["posts"] / max_posts * 100)) if max_posts else 0
+            bar = f'<div class="t-bar"><div style="width:{pct}%"></div></div>'
+            posts_txt = esc(t.get("postsLabel") or (fmt_posts(t["posts"]) + " posts"))
+        else:
+            bar = '<div class="t-bar unknown"><div style="width:100%"></div></div>'
+            posts_txt = esc(t.get("postsLabel") or "投稿数不明")
+        src_link = ""
+        if t.get("url"):
+            src_link = f' <a class="t-src" href="{esc(t["url"])}" target="_blank" rel="noopener">投稿を見る</a>'
+        trend_rows.append(f"""
+<div class="trend-row">
+  <div class="t-head"><span class="t-name">{esc(t['name'])} {badge}{src_link}</span><span class="t-posts">{posts_txt}</span></div>
+  {bar}
+  <p>{esc(t['summary'])}</p>
+</div>""")
+
+    deep = "".join(
+        f"<h3>{esc(x['title'])}</h3><p>{esc(x['summary'])}</p>" for x in d["deepDive"]
+    ) or "<p>この日の深掘りはありません。</p>"
+
+    if d["postNotes"]:
+        notes = []
+        for pn in d["postNotes"]:
+            author = f'<div class="author">{esc(pn["author"])}</div>' if pn.get("author") else ""
+            note_link = ""
+            if pn.get("url"):
+                note_link = f'\n  <p class="note-link"><a href="{esc(pn["url"])}" target="_blank" rel="noopener">投稿を見る →</a></p>'
+            notes.append(f"""
+<blockquote class="post-note">
+  <h3>{esc(pn['topic'])}</h3>{author}
+  <p>{esc(pn['summary'])}</p>
+  <p class="feeling">{esc(pn['feeling'])}</p>{note_link}
+</blockquote>""")
+        notes_html = "".join(notes)
+    else:
+        notes_html = "<p>この日は個別投稿ノートの記録がありません（観測初期のため、定性観測まとめのみ）。</p>"
+
+    if d["controversies"]:
+        contro_html = "".join(
+            f'<div class="contro"><h3>{esc(c["title"])}</h3><p>{esc(c["summary"])}</p></div>'
+            for c in d["controversies"]
+        )
+    else:
+        contro_html = "<p>この日は論争・愚痴として特記された記録がありません。</p>"
+
+    impl_html = "".join(
+        f'<div class="callout"><p><span class="no">示唆 {i + 1}.</span> {esc(s)}</p></div>'
+        for i, s in enumerate(d["implications"])
+    )
+
+    observer = ""
+    if d.get("observerNote"):
+        observer = f"""
+<section class="panel">
+  <h2>観測者の所感（もっとこうすれば良いのに）</h2>
+  <div class="note-box"><p>{esc(d['observerNote'])}</p></div>
+</section>"""
+
+    prev_link = ""
+    next_link = ""
+    if idx > 0:
+        p = days[idx - 1]
+        prev_link = f'<a href="{esc(p["date"])}.html">← 前の日 {esc(p["date"])}（{esc(p["weekday"])}）</a>'
+    if idx < len(days) - 1:
+        nx = days[idx + 1]
+        next_link = f'<a href="{esc(nx["date"])}.html">{esc(nx["date"])}（{esc(nx["weekday"])}） 次の日 →</a>'
+
+    first = " ― 初回観測" if d.get("firstObservation") else ""
+    body = f"""
+<div class="wrap">
+<p style="margin:18px 0"><a href="../index.html">← ダッシュボードに戻る</a></p>
+<div class="hero {accent}">
+  {cover_html(d['date'], from_day_page=True)}
+  <div class="hero-body">
+    <h1>{esc(d['date'])}（{esc(d['weekday'])}）の観測{first}</h1>
+    <p class="meta">観測の起点：{esc(d['source'])}</p>
+  </div>
+</div>
+<section class="panel">
+  <h2>今日のトレンド（Threads）</h2>
+  {''.join(trend_rows)}
+</section>
+<section class="panel">
+  <h2>日替わり深掘り</h2>
+  {deep}
+</section>
+<section class="panel">
+  <h2>個別投稿から見えたこと</h2>
+  {notes_html}
+</section>
+<section class="panel">
+  <h2>論争・愚痴</h2>
+  {contro_html}
+</section>
+<section class="panel">
+  <h2>定性観測</h2>
+  <div class="kv">
+    <div class="item"><h3>論調</h3><p>{esc(d['tone'])}</p></div>
+    <div class="item"><h3>話している層の傾向</h3><p>{esc(d['audience'])}</p></div>
+  </div>
+</section>
+{observer}
+<section class="panel">
+  <h2>示唆</h2>
+  {impl_html}
+</section>
+<nav class="pager">{prev_link}{next_link}</nav>
+</div>"""
+    title = f"{d['date']}（{d['weekday']}）の観測 | {data['site']['title']}"
+    return page_shell(title, body, depth=1)
+
+
+def main():
+    with open(DATA_PATH, encoding="utf-8") as f:
+        data = json.load(f)
+    days = sorted(data["days"], key=lambda x: x["date"])
+
+    os.makedirs(os.path.join(SITE_DIR, "assets"), exist_ok=True)
+    os.makedirs(os.path.join(SITE_DIR, "days"), exist_ok=True)
+
+    with open(os.path.join(SITE_DIR, "assets", "style.css"), "w", encoding="utf-8") as f:
+        f.write(CSS)
+
+    # カバー画像があれば docs/assets/covers/ へコピーする（無くても落ちない）
+    copied = []
+    for d in days:
+        src = os.path.join(COVERS_DIR, d["date"] + ".jpg")
+        if os.path.isfile(src):
+            dst_dir = os.path.join(SITE_DIR, "assets", "covers")
+            os.makedirs(dst_dir, exist_ok=True)
+            shutil.copyfile(src, os.path.join(dst_dir, d["date"] + ".jpg"))
+            copied.append(d["date"])
+
+    with open(os.path.join(SITE_DIR, "index.html"), "w", encoding="utf-8") as f:
+        f.write(build_index(data, days))
+
+    for i, d in enumerate(days):
+        path = os.path.join(SITE_DIR, "days", d["date"] + ".html")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(build_day(data, d, i, days))
+
+    print(f"built: index.html + {len(days)} day pages; covers copied: {copied or 'none'}")
+
+
+if __name__ == "__main__":
+    main()
