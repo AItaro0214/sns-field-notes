@@ -5,6 +5,8 @@ SNS FIELD NOTES 静的サイトビルダー
 
 data/observations.json と assets/covers/<date>.jpg（任意）を読み、
 docs/ 以下に GitHub Pages 向け静的サイトを生成する。標準ライブラリのみ。
+data/marketing.json（マーケティングスペースのスナップショット）があれば、
+docs/marketing/index.html も生成する。
 
 使い方: python3 build.py
 """
@@ -12,13 +14,24 @@ import html
 import json
 import os
 import shutil
+from collections import Counter
+from datetime import datetime, timedelta, timezone
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DATA_PATH = os.path.join(BASE, "data", "observations.json")
+MARKETING_PATH = os.path.join(BASE, "data", "marketing.json")
 COVERS_DIR = os.path.join(BASE, "assets", "covers")
 SITE_DIR = os.path.join(BASE, "docs")
 
 ACCENTS = ["accent-0", "accent-1", "accent-2", "accent-3", "accent-4", "accent-5"]
+
+PILLAR_LABELS = {
+    "theory": "最新の理論・手法",
+    "stats": "統計・調査で見る社会の傾向",
+    "sns": "SNSの流行・ミーム・キーワード",
+    "category": "カテゴリ別トレンド",
+}
+PILLAR_ORDER = ["theory", "stats", "sns", "category"]
 
 
 def esc(s):
@@ -170,11 +183,57 @@ footer.site-foot{color:var(--muted); font-size:.85rem; text-align:center; paddin
   .timeline li{flex-wrap:wrap}
   section.panel{padding:16px}
 }
+/* 共通ナビ */
+nav.site-nav{background:#141a29; color:#fff}
+nav.site-nav .wrap{padding-top:0; padding-bottom:0; display:flex; gap:6px; flex-wrap:wrap}
+nav.site-nav a{color:#c6cfe4; padding:10px 14px; font-size:.92rem; font-weight:700; display:inline-block}
+nav.site-nav a:hover{text-decoration:none; color:#fff}
+nav.site-nav a.active{color:#fff; box-shadow:inset 0 -3px 0 var(--accent); background:rgba(255,255,255,.06)}
+/* マーケティング */
+.mitate-lead{font-size:1.15rem; font-weight:700; margin:0 0 10px}
+.meta-line{color:var(--muted); font-size:.85rem; margin:0 0 12px}
+.chips{display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 0}
+.chip{display:inline-block; background:#eef1f8; color:#333c52; border-radius:999px; padding:1px 10px; font-size:.8rem}
+.chip.media{background:var(--accent-soft); color:var(--accent); font-weight:700}
+.chip.cat{background:var(--gold-soft); color:var(--gold); font-weight:700}
+.chip .cnt{font-weight:700}
+.trend-cards{display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; margin:14px 0 4px}
+.trend-card{border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; background:#fbfcfe}
+.trend-card h3{margin:0 0 6px; font-size:1.02rem}
+.trend-card p{margin:0; font-size:.93rem; color:#333c52}
+.impl{border:1px solid var(--line); border-radius:10px; padding:12px 16px; margin-bottom:12px; background:#fbfcfe}
+.impl .cat{font-weight:700; color:var(--accent); font-size:.9rem}
+.impl p{margin:4px 0 0; font-size:.95rem}
+.impl .imp{background:var(--gold-soft); border-radius:8px; padding:8px 12px}
+.feat{border:2px solid var(--accent); border-radius:var(--radius); padding:18px 20px; background:#fbfcfe}
+.feat h3{margin:0 0 4px; font-size:1.12rem}
+.feat .pub{color:var(--muted); font-size:.9rem; margin:0 0 10px}
+.feat ul{margin:8px 0; padding-left:1.3em}
+.feat li{font-size:.95rem; margin-bottom:4px}
+.feat .survey{font-size:.9rem; color:#333c52; background:#f0f3fa; border-radius:8px; padding:8px 12px}
+.feat .srcs{font-size:.92rem; margin:10px 0 0}
+.counts{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px}
+.counts .item{background:#fbfcfe; border:1px solid var(--line); border-radius:10px; padding:12px 16px}
+.counts .item h3{margin:0 0 6px; font-size:.95rem; color:var(--muted)}
+.counts table{width:100%; border-collapse:collapse; font-size:.92rem}
+.counts td{padding:2px 0}
+.counts td.n{text-align:right; font-weight:700; white-space:nowrap}
+.artcard{border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; margin-bottom:12px; background:var(--surface)}
+.artcard h3{margin:0 0 6px; font-size:1.02rem; line-height:1.5}
+.artcard p{margin:0; font-size:.93rem; color:#333c52}
+.artcard .src{color:var(--muted); font-size:.85rem; margin-top:8px}
 """
 
 
-def page_shell(title, body, depth=0):
+def page_shell(title, body, depth=0, section="sns"):
     prefix = "../" * depth
+    sns_cls = ' class="active"' if section == "sns" else ""
+    mkt_cls = ' class="active"' if section == "marketing" else ""
+    nav = f"""
+<nav class="site-nav"><div class="wrap">
+  <a href="{prefix}index.html"{sns_cls}>SNS観測トップ</a>
+  <a href="{prefix}marketing/index.html"{mkt_cls}>マーケティング最新情報</a>
+</div></nav>"""
     return f"""<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -184,6 +243,7 @@ def page_shell(title, body, depth=0):
 <link rel="stylesheet" href="{prefix}assets/style.css">
 </head>
 <body>
+{nav}
 {body}
 <footer class="site-foot">SNS FIELD NOTES — Instagram / Threads 観測記録（読み取り専用・トレンド起点の観測）</footer>
 </body>
@@ -414,6 +474,153 @@ def build_day(data, day, idx, days):
     return page_shell(title, body, depth=1)
 
 
+def fmt_dt_jst(iso):
+    """ISO日時（UTC）を 'YYYY-MM-DD HH:MM JST' に整形する。失敗時は日付部分を返す。"""
+    if not iso:
+        return ""
+    try:
+        dt = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
+        return dt.astimezone(timezone(timedelta(hours=9))).strftime("%Y-%m-%d %H:%M JST")
+    except Exception:
+        return str(iso)[:10]
+
+
+def build_marketing(mk):
+    ins = mk["insight"]
+    arts = mk["articles"]
+
+    # --- 今の見立て ---
+    trend_cards = []
+    for tr in ins.get("trends", []):
+        kw = "".join(f'<span class="chip">{esc(k)}</span>' for k in tr.get("keywords", []))
+        mt = "".join(f'<span class="chip media">{esc(m)}</span>' for m in tr.get("mediaTypes", []))
+        trend_cards.append(f"""
+<div class="trend-card">
+  <h3>{esc(tr['title'])}</h3>
+  <p>{esc(tr['description'])}</p>
+  <div class="chips">{kw}{mt}</div>
+</div>""")
+
+    impl_html = []
+    for im in ins.get("implications", []):
+        impl_html.append(f"""
+<div class="impl">
+  <span class="cat">{esc(im['category'])}</span>
+  <p>{esc(im['insight'])}</p>
+  <p class="imp">{esc(im['implication'])}</p>
+</div>""")
+
+    mitate = f"""
+<section class="panel">
+  <h2>今の見立て</h2>
+  <p class="mitate-lead">{esc(ins['headline'])}</p>
+  <p class="meta-line">見立ての生成：{esc(fmt_dt_jst(ins.get('generatedAt')))}／もとにした記事：{esc(ins.get('basedOn', ''))}件</p>
+  <p>{esc(ins['overview'])}</p>
+  <div class="trend-cards">{''.join(trend_cards)}</div>
+  <h3>カテゴリ別の示唆</h3>
+  {''.join(impl_html)}
+  <h3>メディア横断メモ</h3>
+  <div class="note-box"><p>{esc(ins['crossMedia'])}</p></div>
+</section>"""
+
+    # --- 注目レポート ---
+    feat_html = []
+    for ft in mk.get("featured", []):
+        points = "".join(f"<li>{esc(p)}</li>" for p in ft.get("points", []))
+        tags = "".join(f'<span class="chip">{esc(t)}</span>' for t in ft.get("tags", []))
+        feat_html.append(f"""
+<div class="feat">
+  <h3>{esc(ft['title'])}</h3>
+  <p class="pub">{esc(ft['publisher'])}／公開：{esc(ft['publishedDate'])}</p>
+  <p>{esc(ft['summary'])}</p>
+  <ul>{points}</ul>
+  <p class="survey">調査概要：{esc(ft['survey'])}</p>
+  <div class="chips">{tags}</div>
+  <p class="srcs">出典：<a href="{esc(ft['sourceUrl'])}" target="_blank" rel="noopener">{esc(ft['sourceLabel'])}</a>／<a href="{esc(ft['secondaryUrl'])}" target="_blank" rel="noopener">{esc(ft['secondaryLabel'])}</a></p>
+</div>""")
+    featured = ""
+    if feat_html:
+        featured = f"""
+<section class="panel">
+  <h2>注目レポート</h2>
+  {''.join(feat_html)}
+</section>"""
+
+    # --- 収録サマリー ---
+    pc = Counter(a["pillar"] for a in arts)
+    mc = Counter(a["mediaLabel"] for a in arts)
+    cc = Counter(a["category"] for a in arts)
+
+    def count_rows(counter, labels=None):
+        out = []
+        for k, v in counter.most_common():
+            name = labels.get(k, k) if labels else k
+            out.append(f'<tr><td>{esc(name)}</td><td class="n">{v}</td></tr>')
+        return "".join(out)
+
+    kw_chips = "".join(
+        f'<span class="chip">{esc(k["keyword"])} <span class="cnt">{esc(k["count"])}</span></span>'
+        for k in mk.get("keywords", [])
+    )
+    summary_panel = f"""
+<section class="panel">
+  <h2>収録サマリー</h2>
+  <div class="kpis">
+    <div class="kpi"><div class="num">{esc(mk['spaceTotal'])}</div><div class="lbl">スペースの総収録数（件）</div></div>
+    <div class="kpi"><div class="num">{len(arts)}</div><div class="lbl">このページに掲載している記事（件）</div></div>
+    <div class="kpi"><div class="num">{len(mk.get('featured', []))}</div><div class="lbl">注目レポート（件）</div></div>
+  </div>
+  <p class="meta-line">スペースのデータ更新：{esc(fmt_dt_jst(mk.get('updatedAt')))}（総収録{esc(mk['spaceTotal'])}件のうち、最新{len(arts)}件を掲載しています）</p>
+  <div class="counts">
+    <div class="item"><h3>柱別</h3><table>{count_rows(pc, PILLAR_LABELS)}</table></div>
+    <div class="item"><h3>メディア種別</h3><table>{count_rows(mc)}</table></div>
+    <div class="item"><h3>カテゴリ別</h3><table>{count_rows(cc)}</table></div>
+  </div>
+  <h3>注目キーワード</h3>
+  <div class="chips">{kw_chips}</div>
+</section>"""
+
+    # --- 記事フィード（柱ごと） ---
+    feed = []
+    for pillar in PILLAR_ORDER:
+        plist = [a for a in arts if a["pillar"] == pillar]
+        if not plist:
+            continue
+        cards = []
+        for a in plist:
+            chips = [f'<span class="chip media">{esc(a["mediaLabel"])}</span>']
+            if a.get("category") and a["category"] != "総合":
+                chips.append(f'<span class="chip cat">{esc(a["category"])}</span>')
+            for t in a.get("tags", []):
+                chips.append(f'<span class="chip">{esc(t)}</span>')
+            date = a.get("publishedDate") or (a.get("fetchedAt") or "")[:10]
+            cards.append(f"""
+<article class="artcard">
+  <h3><a href="{esc(a['sourceUrl'])}" target="_blank" rel="noopener">{esc(a['title'])}</a></h3>
+  <p>{esc(a['summary'])}</p>
+  <div class="chips">{''.join(chips)}</div>
+  <p class="src">{esc(a['sourceName'])}／{esc(date)}</p>
+</article>""")
+        feed.append(f"""
+<section class="panel">
+  <h2>{esc(PILLAR_LABELS[pillar])}（{len(plist)}件）</h2>
+  {''.join(cards)}
+</section>""")
+
+    body = f"""
+<header class="site-head"><div class="wrap">
+  <h1>マーケティング最新情報</h1>
+  <p>マーケティングスペース「マーケティング最新情報」のミラー：今の見立て、注目レポート、収録記事フィード。</p>
+</div></header>
+<div class="wrap">
+{mitate}
+{featured}
+{summary_panel}
+{''.join(feed)}
+</div>"""
+    return page_shell("マーケティング最新情報 | SNS FIELD NOTES", body, depth=1, section="marketing")
+
+
 def main():
     with open(DATA_PATH, encoding="utf-8") as f:
         data = json.load(f)
@@ -443,7 +650,17 @@ def main():
         with open(path, "w", encoding="utf-8") as f:
             f.write(build_day(data, d, i, days))
 
-    print(f"built: index.html + {len(days)} day pages; covers copied: {copied or 'none'}")
+    # マーケティングセクション（data/marketing.json があれば生成する）
+    mkt_msg = "marketing: skipped (data/marketing.json なし)"
+    if os.path.isfile(MARKETING_PATH):
+        with open(MARKETING_PATH, encoding="utf-8") as f:
+            mk = json.load(f)
+        os.makedirs(os.path.join(SITE_DIR, "marketing"), exist_ok=True)
+        with open(os.path.join(SITE_DIR, "marketing", "index.html"), "w", encoding="utf-8") as f:
+            f.write(build_marketing(mk))
+        mkt_msg = f"marketing: built ({len(mk['articles'])} articles, {len(mk.get('featured', []))} featured)"
+
+    print(f"built: index.html + {len(days)} day pages; covers copied: {copied or 'none'}; {mkt_msg}")
 
 
 if __name__ == "__main__":
