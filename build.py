@@ -9,6 +9,8 @@ data/marketing.json（マーケティングスペースのスナップショッ�
 docs/marketing/index.html も生成する。
 data/communities.json（界隈カテゴリの定点観測）があれば、
 docs/communities/index.html も生成する。
+data/companies.json（企業・業界セクターの定点観測）があれば、
+docs/companies/index.html も生成する。
 
 使い方: python3 build.py
 """
@@ -23,6 +25,7 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 DATA_PATH = os.path.join(BASE, "data", "observations.json")
 MARKETING_PATH = os.path.join(BASE, "data", "marketing.json")
 COMMUNITIES_PATH = os.path.join(BASE, "data", "communities.json")
+COMPANIES_PATH = os.path.join(BASE, "data", "companies.json")
 COVERS_DIR = os.path.join(BASE, "assets", "covers")
 SITE_DIR = os.path.join(BASE, "docs")
 
@@ -205,6 +208,23 @@ footer.site-foot{color:var(--muted); font-size:.85rem; text-align:center; paddin
 @media (max-width:640px){
   .comm-grid{grid-template-columns:1fr}
 }
+/* 企業・業界マップ */
+.comp-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px}
+.comp-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:18px 20px; display:flex; flex-direction:column}
+.comp-card h3{margin:0 0 4px; font-size:1.12rem}
+.comp-card .scope{color:var(--muted); font-size:.9rem; margin:0 0 12px}
+.comp-card .watch{background:#f0f3fa; border-radius:10px; padding:10px 14px; font-size:.93rem; margin:0 0 12px}
+.comp-card .watch .watch-lbl{display:block; font-weight:700; font-size:.8rem; color:var(--muted); margin-bottom:2px}
+.comp-entries{list-style:none; margin:auto 0 0; padding:0}
+.comp-entries li{padding:8px 0; border-top:1px dashed var(--line)}
+.comp-entries li:first-child{border-top:none}
+.comp-entries .d{font-weight:700; white-space:nowrap; font-size:.92rem}
+.comp-entries .ttl{display:block; font-size:.95rem; margin:2px 0}
+.comp-entries .src{color:var(--muted); font-size:.83rem}
+.comp-empty{color:var(--muted); font-size:.92rem; margin:auto 0 0}
+@media (max-width:640px){
+  .comp-grid{grid-template-columns:1fr}
+}
 /* 共通ナビ */
 nav.site-nav{background:#141a29; color:#fff}
 nav.site-nav .wrap{padding-top:0; padding-bottom:0; display:flex; gap:6px; flex-wrap:wrap}
@@ -273,11 +293,13 @@ def page_shell(title, body, depth=0, section="sns"):
     sns_cls = ' class="active"' if section == "sns" else ""
     mkt_cls = ' class="active"' if section == "marketing" else ""
     comm_cls = ' class="active"' if section == "communities" else ""
+    comp_cls = ' class="active"' if section == "companies" else ""
     nav = f"""
 <nav class="site-nav"><div class="wrap">
   <a href="{prefix}index.html"{sns_cls}>SNS観測トップ</a>
   <a href="{prefix}marketing/index.html"{mkt_cls}>マーケティング最新情報</a>
   <a href="{prefix}communities/index.html"{comm_cls}>界隈マップ</a>
+  <a href="{prefix}companies/index.html"{comp_cls}>企業・業界マップ</a>
 </div></nav>"""
     return f"""<!DOCTYPE html>
 <html lang="ja">
@@ -825,6 +847,55 @@ def build_communities(cm):
     return page_shell("界隈マップ | SNS FIELD NOTES", body, depth=1, section="communities")
 
 
+def build_companies(cp):
+    sectors = cp.get("sectors", [])
+    active = [s for s in sectors if s.get("entries")]
+    total_entries = sum(len(s.get("entries", [])) for s in sectors)
+
+    cards = []
+    for s in sectors:
+        watch = ""
+        if s.get("watchPoints"):
+            watch = f'<p class="watch"><span class="watch-lbl">追う観点</span>{esc(s["watchPoints"])}</p>'
+        entries = sorted(s.get("entries", []), key=lambda e: e["date"], reverse=True)
+        if entries:
+            rows = []
+            for e in entries:
+                ttl = esc(e["title"])
+                if e.get("sourceUrl"):
+                    ttl = f'<a href="{esc(e["sourceUrl"])}" target="_blank" rel="noopener">{ttl}</a>'
+                src = f'<span class="src">出典：{esc(e["sourceName"])}</span>' if e.get("sourceName") else ""
+                rows.append(
+                    f'<li><span class="d">{esc(e["date"])}</span>'
+                    f'<span class="ttl">{ttl}</span>{src}</li>'
+                )
+            entries_html = f'<ul class="comp-entries">{"".join(rows)}</ul>'
+        else:
+            entries_html = '<p class="comp-empty">まだ記録なし</p>'
+        cards.append(f"""
+<article class="comp-card">
+  <h3>{esc(s['name'])}</h3>
+  <p class="scope">{esc(s['scope'])}</p>
+  {watch}
+  {entries_html}
+</article>""")
+
+    body = f"""
+<header class="site-head"><div class="wrap">
+  <h1>企業・業界マップ</h1>
+  <p>企業同士の関係の変化を、セクターごとに定点観測するページ。</p>
+</div></header>
+<div class="wrap">
+<section class="panel">
+  <h2>このページについて</h2>
+  <p>提携・協業・出資・買収・人材移動・共同キャンペーン・サービス連携など、企業同士の関係の変化をセクター別に追いかけます。個別のニュースの細部ではなく、業界の中でどの企業とどの企業が結びつき、離れていくのかというエコシステムの動きを、出典つきで時系列に記録します。</p>
+  <p class="meta-line">セクター：{len(sectors)}／記録のあるセクター：{len(active)}／記録件数：{total_entries}件／最終更新：{esc(cp.get('updatedAt', ''))}</p>
+</section>
+<div class="comp-grid">{''.join(cards)}</div>
+</div>"""
+    return page_shell("企業・業界マップ | SNS FIELD NOTES", body, depth=1, section="companies")
+
+
 def main():
     with open(DATA_PATH, encoding="utf-8") as f:
         data = json.load(f)
@@ -874,7 +945,17 @@ def main():
             f.write(build_communities(cm))
         comm_msg = f"communities: built ({len(cm.get('categories', []))} categories)"
 
-    print(f"built: index.html + {len(days)} day pages; covers copied: {copied or 'none'}; {mkt_msg}; {comm_msg}")
+    # 企業・業界マップ（data/companies.json があれば生成する）
+    comp_msg = "companies: skipped (data/companies.json なし)"
+    if os.path.isfile(COMPANIES_PATH):
+        with open(COMPANIES_PATH, encoding="utf-8") as f:
+            cp = json.load(f)
+        os.makedirs(os.path.join(SITE_DIR, "companies"), exist_ok=True)
+        with open(os.path.join(SITE_DIR, "companies", "index.html"), "w", encoding="utf-8") as f:
+            f.write(build_companies(cp))
+        comp_msg = f"companies: built ({len(cp.get('sectors', []))} sectors)"
+
+    print(f"built: index.html + {len(days)} day pages; covers copied: {copied or 'none'}; {mkt_msg}; {comm_msg}; {comp_msg}")
 
 
 if __name__ == "__main__":

@@ -125,6 +125,23 @@ footer.site-foot{color:var(--muted); font-size:.85rem; text-align:center; paddin
 @media (max-width:640px){
   .comm-grid{grid-template-columns:1fr}
 }
+/* 企業・業界マップ */
+.comp-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px}
+.comp-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:18px 20px; display:flex; flex-direction:column}
+.comp-card h3{margin:0 0 4px; font-size:1.12rem}
+.comp-card .scope{color:var(--muted); font-size:.9rem; margin:0 0 12px}
+.comp-card .watch{background:#f0f3fa; border-radius:10px; padding:10px 14px; font-size:.93rem; margin:0 0 12px}
+.comp-card .watch .watch-lbl{display:block; font-weight:700; font-size:.8rem; color:var(--muted); margin-bottom:2px}
+.comp-entries{list-style:none; margin:auto 0 0; padding:0}
+.comp-entries li{padding:8px 0; border-top:1px dashed var(--line)}
+.comp-entries li:first-child{border-top:none}
+.comp-entries .d{font-weight:700; white-space:nowrap; font-size:.92rem}
+.comp-entries .ttl{display:block; font-size:.95rem; margin:2px 0}
+.comp-entries .src{color:var(--muted); font-size:.83rem}
+.comp-empty{color:var(--muted); font-size:.92rem; margin:auto 0 0}
+@media (max-width:640px){
+  .comp-grid{grid-template-columns:1fr}
+}
 /* 共通ナビ */
 nav.site-nav{background:#141a29; color:#fff}
 nav.site-nav .wrap{padding-top:0; padding-bottom:0; display:flex; gap:6px; flex-wrap:wrap}

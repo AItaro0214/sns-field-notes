@@ -1,0 +1,131 @@
+{
+  "updatedAt": "2026-11-18",
+  "sectors": [
+    {
+      "id": "retail",
+      "name": "小売",
+      "scope": "百貨店・スーパー・コンビニ・ドラッグストア・ECモールなどの小売事業者",
+      "watchPoints": "大手同士の提携・再編、リテールメディアやPBをめぐる合弁・協業、DX・AI導入の提携、物流・決済での連携",
+      "entries": [
+        {
+          "date": "2026-11-12",
+          "title": "セブン‐イレブン、電通・サイバーエージェントと合弁会社を立ち上げ ― リテールメディアとは？【2026年版】",
+          "sourceUrl": "https://www.issoh.co.jp/column/details/6994/",
+          "sourceName": "www.issoh.co.jp"
+        }
+      ]
+    },
+    {
+      "id": "btob",
+      "name": "BtoBソリューション",
+      "scope": "バックオフィス、DX支援、AI活用、SaaSなど企業向けサービス全般",
+      "watchPoints": "SaaS同士の機能連携・API統合、大手による買収・子会社化、販売代理・OEM提携、AI機能をめぐる協業",
+      "entries": []
+    },
+    {
+      "id": "logistics",
+      "name": "物流",
+      "scope": "運送、倉庫、ラストマイル、物流テック",
+      "watchPoints": "共同配送や倉庫シェアの提携、M&Aによる再編、EC・小売との連携、物流テックへの出資",
+      "entries": []
+    },
+    {
+      "id": "manufacturing",
+      "name": "製造",
+      "scope": "メーカー、工場、ものづくり企業全般",
+      "watchPoints": "共同開発・技術提携、生産拠点の再編、スタートアップへの出資、業界を超えた協業",
+      "entries": []
+    },
+    {
+      "id": "hr",
+      "name": "人材（採用・育成）",
+      "scope": "人材紹介・求人メディア（マイナビ等）、研修、HRテック",
+      "watchPoints": "求人メディアとHRテックの提携・買収、研修・育成サービスの協業、大手人材会社の再編",
+      "entries": []
+    },
+    {
+      "id": "construction",
+      "name": "建設",
+      "scope": "ゼネコン、住宅メーカー、建設テック",
+      "watchPoints": "ゼネコン同士の提携・再編、建設テックへの出資・買収、住宅分野での協業や共同開発",
+      "entries": []
+    },
+    {
+      "id": "finance",
+      "name": "金融",
+      "scope": "銀行、証券、保険、フィンテック、決済",
+      "watchPoints": "銀行とフィンテックの資本・業務提携、決済ネットワークの連携、保険と他業種の協業、再編・経営統合",
+      "entries": []
+    },
+    {
+      "id": "agency",
+      "name": "マーケティング・広告代理店",
+      "scope": "広告会社、マーケティング支援会社、メディア関連企業",
+      "watchPoints": "大手広告会社の再編・統合、プラットフォーマーとの協業、調査・データをめぐる連携、制作会社の買収",
+      "entries": [
+        {
+          "date": "2026-11-16",
+          "title": "AMF、Skyfallと連携して「JC・JK流行語大賞2026上半期」を発表",
+          "sourceUrl": "https://www.mapion.co.jp/news/release/000000034.000017469-all/",
+          "sourceName": "www.mapion.co.jp"
+        }
+      ]
+    },
+    {
+      "id": "printing",
+      "name": "印刷",
+      "scope": "印刷会社、印刷通販、出版印刷",
+      "watchPoints": "印刷大手の再編・提携、印刷通販と他サービスの連携、オンデマンド化・DXをめぐる協業",
+      "entries": []
+    },
+    {
+      "id": "cosmetics",
+      "name": "化粧品",
+      "scope": "化粧品メーカー、ブランド、OEM",
+      "watchPoints": "ブランドの買収・売却、OEMとの提携、D2Cブランドと大手の資本提携、共同開発",
+      "entries": []
+    },
+    {
+      "id": "beauty-medical",
+      "name": "美容医療",
+      "scope": "美容クリニック、医療脱毛、審美歯科など",
+      "watchPoints": "クリニックチェーンの統合・買収、予約プラットフォームとの連携、医療法人同士の提携",
+      "entries": []
+    },
+    {
+      "id": "realestate",
+      "name": "不動産（仲介・管理）",
+      "scope": "不動産仲介、管理会社、不動産テック",
+      "watchPoints": "仲介大手の再編、不動産テックの買収・出資、管理会社同士の統合、プラットフォーム連携",
+      "entries": []
+    },
+    {
+      "id": "food",
+      "name": "飲食",
+      "scope": "外食チェーン、食品メーカー、飲食テック",
+      "watchPoints": "チェーン同士の提携・買収、食品メーカーとの共同開発、デリバリー・予約プラットフォームとの連携",
+      "entries": []
+    },
+    {
+      "id": "computers",
+      "name": "コンピュータ・PC",
+      "scope": "PCメーカー、周辺機器、SIerを含むコンピュータ関連",
+      "watchPoints": "メーカーの再編、AI PCをめぐる半導体・OS企業との協業、SIerの買収・統合、周辺機器ブランドの提携",
+      "entries": []
+    },
+    {
+      "id": "appliances",
+      "name": "生活家電",
+      "scope": "家電メーカー、白物家電、調理家電",
+      "watchPoints": "家電メーカーの提携・事業売却、スマートホームでのプラットフォーム連携、小売との共同企画",
+      "entries": []
+    },
+    {
+      "id": "platform",
+      "name": "ウェブプラットフォーム",
+      "scope": "プラットフォーム事業者、SaaS、マッチングサービス",
+      "watchPoints": "プラットフォーム同士の連携・統合、決済やIDの連携、大手によるスタートアップ買収",
+      "entries": []
+    }
+  ]
+}
