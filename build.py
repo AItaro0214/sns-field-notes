@@ -222,6 +222,27 @@ nav.site-nav a.active{color:#fff; box-shadow:inset 0 -3px 0 var(--accent); backg
 .artcard h3{margin:0 0 6px; font-size:1.02rem; line-height:1.5}
 .artcard p{margin:0; font-size:.93rem; color:#333c52}
 .artcard .src{color:var(--muted); font-size:.85rem; margin-top:8px}
+.chip.pillar{background:#e6f4ea; color:#137333; font-weight:700}
+/* フィルターバー（マーケティング） */
+.filterbar{position:sticky; top:0; z-index:20; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:14px 16px; margin-bottom:24px; box-shadow:0 2px 10px rgba(28,35,51,.07)}
+.fgroup{display:flex; align-items:flex-start; gap:8px; margin-bottom:8px; flex-wrap:wrap}
+.fgroup .flabel{flex:0 0 5em; font-weight:700; font-size:.85rem; color:var(--muted); padding-top:5px}
+.fchips{display:flex; flex-wrap:wrap; gap:6px; flex:1; min-width:0}
+.fchip{appearance:none; -webkit-appearance:none; border:1px solid var(--line); background:#eef1f8; color:#333c52; border-radius:999px; padding:3px 12px; font-size:.83rem; line-height:1.6; cursor:pointer; font-family:inherit}
+.fchip:hover{border-color:var(--accent); color:var(--accent)}
+.fchip.active{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:700}
+.frow{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px}
+.fsearch{flex:1; min-width:180px; padding:8px 12px; border:1px solid var(--line); border-radius:8px; font-size:.95rem; font-family:inherit; color:var(--ink)}
+.fcount{margin:0; color:var(--muted); font-size:.9rem; white-space:nowrap}
+.fcount .n{font-weight:700; color:var(--ink); font-size:1.05rem}
+.freset{appearance:none; -webkit-appearance:none; border:1px solid var(--line); background:var(--surface); color:var(--ink); border-radius:8px; padding:7px 14px; font-size:.88rem; cursor:pointer; font-family:inherit}
+.freset:hover{border-color:var(--accent); color:var(--accent)}
+.fempty{color:var(--muted); text-align:center; padding:28px 0; margin:0}
+@media (max-width:640px){
+  .filterbar{padding:12px}
+  .fgroup .flabel{flex-basis:100%; padding-top:0}
+  .fsearch{min-width:140px}
+}
 """
 
 
@@ -580,32 +601,135 @@ def build_marketing(mk):
   <div class="chips">{kw_chips}</div>
 </section>"""
 
-    # --- 記事フィード（柱ごと） ---
-    feed = []
-    for pillar in PILLAR_ORDER:
-        plist = [a for a in arts if a["pillar"] == pillar]
-        if not plist:
-            continue
-        cards = []
-        for a in plist:
-            chips = [f'<span class="chip media">{esc(a["mediaLabel"])}</span>']
-            if a.get("category") and a["category"] != "総合":
-                chips.append(f'<span class="chip cat">{esc(a["category"])}</span>')
-            for t in a.get("tags", []):
-                chips.append(f'<span class="chip">{esc(t)}</span>')
-            date = a.get("publishedDate") or (a.get("fetchedAt") or "")[:10]
-            cards.append(f"""
-<article class="artcard">
+    # --- フィルターバー ---
+    FILTER_PILLAR_ORDER = ["stats", "theory", "sns", "category"]
+    FILTER_MEDIA_ORDER = ["research", "official", "media", "sns", "global"]
+    FILTER_CATEGORY_ORDER = ["BtoB", "D2C", "飲食", "小売", "化粧品", "医療", "製造・メーカー", "総合"]
+    media_label_by_type = {}
+    for a in arts:
+        media_label_by_type.setdefault(a["mediaType"], a["mediaLabel"])
+    present_pillars = {a["pillar"] for a in arts}
+    present_media = {a["mediaType"] for a in arts}
+    present_cats = {a["category"] for a in arts}
+
+    def chip_row(group, items, active_value):
+        out = []
+        for v, label in items:
+            cls = "fchip active" if v == active_value else "fchip"
+            out.append(
+                f'<button type="button" class="{cls}" data-filter-group="{group}" '
+                f'data-filter-value="{esc(v)}">{esc(label)}</button>'
+            )
+        return "".join(out)
+
+    pillar_items = [("", "すべて")] + [
+        (p, PILLAR_LABELS[p]) for p in FILTER_PILLAR_ORDER if p in present_pillars
+    ]
+    media_items = [("", "すべて")] + [
+        (m, media_label_by_type.get(m, m)) for m in FILTER_MEDIA_ORDER if m in present_media
+    ]
+    cat_items = [("", "すべて")] + [
+        (c, c) for c in FILTER_CATEGORY_ORDER if c in present_cats
+    ] + [(c, c) for c in sorted(present_cats) if c not in FILTER_CATEGORY_ORDER]
+    initial_count = sum(1 for a in arts if a["pillar"] == "stats")
+    filterbar = f"""
+<div class="filterbar" id="filterbar">
+  <div class="fgroup"><span class="flabel">柱</span><div class="fchips">{chip_row('pillar', pillar_items, 'stats')}</div></div>
+  <div class="fgroup"><span class="flabel">メディア</span><div class="fchips">{chip_row('media', media_items, '')}</div></div>
+  <div class="fgroup"><span class="flabel">カテゴリ</span><div class="fchips">{chip_row('category', cat_items, '')}</div></div>
+  <div class="frow">
+    <input type="search" class="fsearch" id="fsearch" placeholder="キーワードで絞り込む（タイトル・要約・タグ）" aria-label="キーワード検索">
+    <p class="fcount"><span class="n" id="fcount-num">{initial_count}</span>件を表示中</p>
+    <button type="button" class="freset" id="freset">リセット</button>
+  </div>
+</div>"""
+
+    # --- 記事フィード（単一フィード＋クライアントサイド・フィルター） ---
+    cards = []
+    for a in arts:
+        chips = [
+            f'<span class="chip pillar">{esc(PILLAR_LABELS.get(a["pillar"], a["pillar"]))}</span>',
+            f'<span class="chip media">{esc(a["mediaLabel"])}</span>',
+        ]
+        if a.get("category") and a["category"] != "総合":
+            chips.append(f'<span class="chip cat">{esc(a["category"])}</span>')
+        for t in a.get("tags", []):
+            chips.append(f'<span class="chip">{esc(t)}</span>')
+        date = a.get("publishedDate") or (a.get("fetchedAt") or "")[:10]
+        search_text = esc(" ".join(
+            (a["title"] + " " + a["summary"] + " " + " ".join(a.get("tags", []))).lower().split()
+        ))
+        cards.append(f"""
+<article class="artcard" data-pillar="{esc(a['pillar'])}" data-media="{esc(a['mediaType'])}" data-category="{esc(a['category'])}" data-search="{search_text}">
   <h3><a href="{esc(a['sourceUrl'])}" target="_blank" rel="noopener">{esc(a['title'])}</a></h3>
   <p>{esc(a['summary'])}</p>
   <div class="chips">{''.join(chips)}</div>
   <p class="src">{esc(a['sourceName'])}／{esc(date)}</p>
 </article>""")
-        feed.append(f"""
+    feed = f"""
 <section class="panel">
-  <h2>{esc(PILLAR_LABELS[pillar])}（{len(plist)}件）</h2>
-  {''.join(cards)}
-</section>""")
+  <h2>記事フィード（{len(arts)}件）</h2>
+  <div id="ffeed">{''.join(cards)}</div>
+  <p class="fempty" id="fempty" hidden>条件に合う記事がありません。フィルターやキーワードを変えてお試しください。</p>
+</section>"""
+
+    filter_script = """
+<script>
+(function () {
+  var INITIAL = { pillar: "stats", media: "", category: "", q: "" };
+  var state = { pillar: INITIAL.pillar, media: INITIAL.media, category: INITIAL.category, q: INITIAL.q };
+  var cards = Array.prototype.slice.call(document.querySelectorAll(".artcard[data-pillar]"));
+  var countEl = document.getElementById("fcount-num");
+  var emptyEl = document.getElementById("fempty");
+  function apply() {
+    var n = 0;
+    for (var i = 0; i < cards.length; i++) {
+      var c = cards[i];
+      var ok = (!state.pillar || c.getAttribute("data-pillar") === state.pillar)
+        && (!state.media || c.getAttribute("data-media") === state.media)
+        && (!state.category || c.getAttribute("data-category") === state.category)
+        && (!state.q || (c.getAttribute("data-search") || "").indexOf(state.q) !== -1);
+      c.style.display = ok ? "" : "none";
+      if (ok) n++;
+    }
+    if (countEl) countEl.textContent = n;
+    if (emptyEl) emptyEl.hidden = n !== 0;
+  }
+  function syncChips() {
+    var chips = document.querySelectorAll(".fchip");
+    for (var i = 0; i < chips.length; i++) {
+      var g = chips[i].getAttribute("data-filter-group");
+      chips[i].classList.toggle("active", chips[i].getAttribute("data-filter-value") === state[g]);
+    }
+  }
+  var allChips = document.querySelectorAll(".fchip");
+  for (var j = 0; j < allChips.length; j++) {
+    allChips[j].addEventListener("click", function () {
+      state[this.getAttribute("data-filter-group")] = this.getAttribute("data-filter-value");
+      syncChips();
+      apply();
+    });
+  }
+  var input = document.getElementById("fsearch");
+  if (input) {
+    input.addEventListener("input", function () {
+      state.q = input.value.trim().toLowerCase();
+      apply();
+    });
+  }
+  var reset = document.getElementById("freset");
+  if (reset) {
+    reset.addEventListener("click", function () {
+      state = { pillar: INITIAL.pillar, media: INITIAL.media, category: INITIAL.category, q: INITIAL.q };
+      if (input) input.value = "";
+      syncChips();
+      apply();
+    });
+  }
+  syncChips();
+  apply();
+})();
+</script>"""
 
     body = f"""
 <header class="site-head"><div class="wrap">
@@ -613,11 +737,13 @@ def build_marketing(mk):
   <p>マーケティングスペース「マーケティング最新情報」のミラー：今の見立て、注目レポート、収録記事フィード。</p>
 </div></header>
 <div class="wrap">
+{filterbar}
 {mitate}
 {featured}
 {summary_panel}
-{''.join(feed)}
-</div>"""
+{feed}
+</div>
+{filter_script}"""
     return page_shell("マーケティング最新情報 | SNS FIELD NOTES", body, depth=1, section="marketing")
 
 
