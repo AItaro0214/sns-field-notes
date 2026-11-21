@@ -121,6 +121,20 @@ section.panel > h3{margin:20px 0 8px; font-size:1.05rem}
 .theme{border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; margin-bottom:14px; background:#fbfcfe}
 .theme h3{margin:0 0 4px; font-size:1.08rem}
 .theme .desc{color:var(--muted); font-size:.92rem; margin:0 0 12px}
+/* 継続テーマ：年→月→テーマ名の折りたたみ */
+details.theme-year{border:1px solid var(--line); border-radius:var(--radius); margin-bottom:14px; background:#fbfcfe}
+details.theme-year > summary{cursor:pointer; padding:14px 18px; font-weight:700; font-size:1.12rem; list-style:none}
+details.theme-month{margin:0 14px 12px; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface)}
+details.theme-month > summary{cursor:pointer; padding:10px 14px; font-weight:700; list-style:none}
+details.theme-item{border-top:1px dashed var(--line); padding:0 14px}
+details.theme-item > summary{cursor:pointer; padding:9px 0; list-style:none; display:flex; gap:10px; align-items:baseline; flex-wrap:wrap}
+details.theme-item > summary .tname{font-weight:700}
+details.theme-item > summary .tmeta{color:var(--muted); font-size:.85rem}
+details summary::-webkit-details-marker{display:none}
+details.theme-year summary::before, details.theme-month summary::before, details.theme-item summary::before{content:"▸ "; color:var(--accent)}
+details.theme-year[open] > summary::before, details.theme-month[open] > summary::before, details.theme-item[open] > summary::before{content:"▾ "}
+.theme-item .desc{color:var(--muted); font-size:.92rem; margin:0 0 10px}
+.theme-item .timeline{padding-bottom:10px}
 .timeline{list-style:none; margin:0; padding:0}
 .timeline li{display:flex; gap:12px; padding:8px 0; border-top:1px dashed var(--line)}
 .timeline li:first-child{border-top:none}
@@ -366,19 +380,60 @@ def build_index(data, days):
   <div class="kpi"><div class="num">{esc(lt_posts)}</div><div class="lbl">最新日（{esc(latest['date'])}）のトップトレンド投稿数：{esc(lt['name'] if lt else '')}</div></div>
 </div>"""
 
-    themes_html = []
+    # 継続テーマ：開始した年→月で畳み、一覧はテーマ名だけ、詳細は開いて見る
+    def theme_start(th):
+        ds = [ph["date"] for ph in th.get("phases", []) if ph.get("date")]
+        return min(ds) if ds else "0000-00-00"
+
+    def theme_latest(th):
+        ds = [ph["date"] for ph in th.get("phases", []) if ph.get("date")]
+        return max(ds) if ds else "0000-00-00"
+
+    by_year = {}
     for th in data.get("themes", []):
-        rows = []
-        for ph in th["phases"]:
-            rows.append(
-                f'<li><span class="d">{esc(ph["date"])}</span>'
-                f'<span class="ph">{esc(ph["phase"])}</span>'
-                f'<span class="nt">{esc(ph["note"])}</span></li>'
+        start = theme_start(th)
+        by_year.setdefault(start[:4], {}).setdefault(start[5:7], []).append(th)
+
+    years_sorted = sorted(by_year.keys(), reverse=True)
+    latest_year = years_sorted[0] if years_sorted else None
+    themes_html = []
+    for year in years_sorted:
+        months = by_year[year]
+        months_sorted = sorted(months.keys(), reverse=True)
+        year_count = sum(len(v) for v in months.values())
+        month_html = []
+        for mi, month in enumerate(months_sorted):
+            ths = sorted(months[month], key=theme_latest, reverse=True)
+            items = []
+            for th in ths:
+                rows = []
+                for ph in sorted(th.get("phases", []), key=lambda p: p.get("date", "")):
+                    rows.append(
+                        f'<li><span class="d">{esc(ph["date"])}</span>'
+                        f'<span class="ph">{esc(ph["phase"])}</span>'
+                        f'<span class="nt">{esc(ph["note"])}</span></li>'
+                    )
+                latest_ph = max(th["phases"], key=lambda p: p.get("date", "")) if th.get("phases") else None
+                meta = ""
+                if latest_ph:
+                    meta = (
+                        f'<span class="ph">{esc(latest_ph["phase"])}</span>'
+                        f'<span class="tmeta">{esc(theme_start(th))} 〜 {esc(theme_latest(th))}</span>'
+                    )
+                items.append(
+                    f'<details class="theme-item"><summary><span class="tname">{esc(th["name"])}</span>{meta}</summary>'
+                    f'<p class="desc">{esc(th.get("description", ""))}</p>'
+                    f'<ul class="timeline">{"".join(rows)}</ul></details>'
+                )
+            m_open = " open" if (year == latest_year and mi == 0) else ""
+            month_html.append(
+                f'<details class="theme-month"{m_open}><summary>{int(month)}月（{len(ths)}テーマ）</summary>'
+                f'{"".join(items)}</details>'
             )
+        y_open = " open" if year == latest_year else ""
         themes_html.append(
-            f'<div class="theme"><h3>{esc(th["name"])}</h3>'
-            f'<p class="desc">{esc(th["description"])}</p>'
-            f'<ul class="timeline">{"".join(rows)}</ul></div>'
+            f'<details class="theme-year"{y_open}><summary>{esc(year)}年（{year_count}テーマ）</summary>'
+            f'{"".join(month_html)}</details>'
         )
 
     cards = []
