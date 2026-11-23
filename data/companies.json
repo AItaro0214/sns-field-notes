@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-18",
+  "updatedAt": "2026-11-23",
   "sectors": [
     {
       "id": "retail",
@@ -12,6 +12,12 @@
           "title": "セブン‐イレブン、電通・サイバーエージェントと合弁会社を立ち上げ ― リテールメディアとは？【2026年版】",
           "sourceUrl": "https://www.issoh.co.jp/column/details/6994/",
           "sourceName": "www.issoh.co.jp"
+        },
+        {
+          "date": "2026-11-04",
+          "title": "セブン‐イレブン・ジャパン、ソフトバンク・PayPay・LINEヤフー・三井住友カードと5社連携で顧客接点拡大へ",
+          "sourceUrl": "https://follow-next.com/%E3%83%9E%E3%83%BC%E3%82%B1%E3%83%86%E3%82%A3%E3%83%B3%E3%82%B0/%E3%83%9E%E3%83%BC%E3%82%B1%E3%83%86%E3%82%A3%E3%83%B3%E3%82%B0%E3%83%8B%E3%83%A5%E3%83%BC%E3%82%B9%E3%81%BE%E3%81%A8%E3%82%81%EF%BC%882026-10-28%E3%80%9C2026-11-03%EF%BC%89/",
+          "sourceName": "follow-next.com"
         }
       ]
     },
@@ -20,7 +26,14 @@
       "name": "BtoBソリューション",
       "scope": "バックオフィス、DX支援、AI活用、SaaSなど企業向けサービス全般",
       "watchPoints": "SaaS同士の機能連携・API統合、大手による買収・子会社化、販売代理・OEM提携、AI機能をめぐる協業",
-      "entries": []
+      "entries": [
+        {
+          "date": "2026-11-18",
+          "title": "PRIZMAとムジンが「2026年度上半期 BtoBマーケティング実態調査」を共同企画として公開",
+          "sourceUrl": "https://www.sankei.com/pressrelease/prtimes/BCQJHWKFTRN3BMV4VVGQ3FFLWE/",
+          "sourceName": "www.sankei.com"
+        }
+      ]
     },
     {
       "id": "logistics",
@@ -68,6 +81,12 @@
           "title": "AMF、Skyfallと連携して「JC・JK流行語大賞2026上半期」を発表",
           "sourceUrl": "https://www.mapion.co.jp/news/release/000000034.000017469-all/",
           "sourceName": "www.mapion.co.jp"
+        },
+        {
+          "date": "2026-11-04",
+          "title": "電通、広告への「注目」を研究する「Attention Frontier」を発足（DJIB・ビデオリサーチ・REVISIO・Lumen Researchと共創）",
+          "sourceUrl": "https://follow-next.com/%E3%83%9E%E3%83%BC%E3%82%B1%E3%83%86%E3%82%A3%E3%83%B3%E3%82%B0/%E3%83%9E%E3%83%BC%E3%82%B1%E3%83%86%E3%82%A3%E3%83%B3%E3%82%B0%E3%83%8B%E3%83%A5%E3%83%BC%E3%82%B9%E3%81%BE%E3%81%A8%E3%82%81%EF%BC%882026-10-28%E3%80%9C2026-11-03%EF%BC%89/",
+          "sourceName": "follow-next.com"
         }
       ]
     },
